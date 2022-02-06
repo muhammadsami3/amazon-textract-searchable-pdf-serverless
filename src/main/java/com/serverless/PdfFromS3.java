@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
@@ -177,12 +179,14 @@ public class PdfFromS3 {
 
 	private String getDestPdfKeyName(String jsonFileName) {
 		String keyName = getFileName(jsonFileName);
+		String date = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
 
 		if (EnvironmentVariable.S3Path_SourcePdf.endsWith("/") || EnvironmentVariable.S3Path_SourcePdf.isEmpty()) {
-			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + keyName;
+			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + '/' + date + '/' + keyName;
 		} else {
-			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + '/' + keyName;
+			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + '/' + date + '/' + keyName;
 		}
+
 		LOG.debug("getDestPdfKeyName: jsonFileName " + jsonFileName + ",keyName:" + keyName);
 		return keyName;
 	}
