@@ -1,5 +1,7 @@
 # Description
-This service generates a searchable PDF from a non-searchable PDF and the corresponding textract .json in an S3 bucket (no additional textract call should be used). Output is the same PDF but searchable in another S3 bucket. It also work with multi-page PDF documents
+This service generates a searchable PDF from a non-searchable PDF and the corresponding textract .json in an S3 bucket (no additional textract call should be used). Output is the same PDF but searchable in another S3 bucket. It also work with multi-page PDF documents. 
+
+You can see an example of [searchable PDF document](https://github.com/muhammadsami3/amazon-textract-searchable-pdf-serverless/raw/master/out_testpdf.pdf) that is generated using [Amazon Textract .json](https://raw.githubusercontent.com/muhammadsami3/amazon-textract-searchable-pdf-serverless/e6ddd8fd9a698c156c430e8850038fc70cb73507/testpdf.json) from a [scanned document](https://github.com/muhammadsami3/amazon-textract-searchable-pdf-serverless/raw/e6ddd8fd9a698c156c430e8850038fc70cb73507/testpdf.pdf). While text is locked in images in the scanned document, you can select, copy, and search text in the searchable PDF document.
 
 # Pre-requisites
 - Install node and npm
