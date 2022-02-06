@@ -11,18 +11,20 @@ You can see an example of [searchable PDF document](https://github.com/muhammads
   
 
 # Testing Pre-requisites
+```
 $ java -version
 openjdk version "11.0.13" 2021-10-19
 OpenJDK Runtime Environment (build 11.0.13+8-Ubuntu-0ubuntu1.20.04)
-OpenJDK 64-Bit Server VM (build 11.0.13+8-Ubuntu-0ubuntu1.20.04, mixed mode, sharing)
-
+OpenJDK 64-Bit Server VM (build 11.0.13+8-Ubuntu-0ubuntu1.20.04, mixed mode, sharing) 
+```
+```
 $ mvn -v
 Apache Maven 3.6.3
 Maven home: /usr/share/maven
 Java version: 11.0.13, vendor: Ubuntu, runtime: /usr/lib/jvm/java-11-openjdk-amd64
 Default locale: en_US, platform encoding: UTF-8
 OS name: "linux", version: "5.4.0-97-generic", arch: "amd64", family: "unix"
-
+```
 # Update the environment variable in the serverless.yml
 - S3BucketName_TextractJsonFile: The existing S3 bucket that will trigger the Lambda once a new textract json output get uploaded.
 - S3Path_TextractJsonFile: The existing S3 bucket path to the json output.
