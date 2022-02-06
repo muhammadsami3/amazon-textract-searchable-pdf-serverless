@@ -33,6 +33,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class PdfFromS3 {
 
 	private static final Logger LOG = LogManager.getLogger(Handler.class);
+	private AmazonS3 s3client;
+
+	public PdfFromS3() {
+		s3client = AmazonS3ClientBuilder.defaultClient();
+	}
 
 	public void run(String jsonBucketName, String jsonFileName) throws IOException, InterruptedException {
 
@@ -75,11 +80,16 @@ public class PdfFromS3 {
 
 	}
 
+//	private getPagesFromArray
+
 	private List<ArrayList<TextLine>> extractText(String bucketName, String jsonFileName) throws InterruptedException {
 
 		List<ArrayList<TextLine>> pages = new ArrayList<ArrayList<TextLine>>();
 		ArrayList<TextLine> page = null;
 		BoundingBox boundingBox = null;
+		GetDocumentTextDetectionResult[] textDetectionResultArr = null;
+		GetDocumentTextDetectionResult textDetectionResult = null;
+		List<Block> blocks = null;
 
 		try {
 			// create object mapper instance
@@ -88,48 +98,46 @@ public class PdfFromS3 {
 			mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
 			InputStream inputJson = getFileFromS3(bucketName, jsonFileName);
+			if (inputJson.toString().startsWith("[")) {
 
-			// convert JSON file to DocumentTextDetectionResult
-			GetDocumentTextDetectionResult[] textDetectionResult = mapper.readValue(inputJson,
-					GetDocumentTextDetectionResult[].class);
+				textDetectionResultArr = mapper.readValue(inputJson, GetDocumentTextDetectionResult[].class);
+				if (textDetectionResultArr.length > 0) {
 
-			if (textDetectionResult.length > 0) {
-
-				List<Block> blocks = textDetectionResult[0].getBlocks();
-				LOG.info("blocks size: " + blocks.size());
-
-				for (Block block : blocks) {
-					LOG.info("block.getBlockType(): " + block.getBlockType());
-					if (block.getBlockType().equals("PAGE")) {
-						page = new ArrayList<TextLine>();
-						pages.add(page);
-					} else if (block.getBlockType().equals("LINE")) {
-
-						boundingBox = block.getGeometry().getBoundingBox();
-						page.add(new TextLine(boundingBox.getLeft(), boundingBox.getTop(), boundingBox.getWidth(),
-								boundingBox.getHeight(), block.getText()));
-					}
+					blocks = textDetectionResultArr[0].getBlocks();
 				}
+			} else {
+
+				textDetectionResult = mapper.readValue(inputJson, GetDocumentTextDetectionResult.class);
+				blocks = textDetectionResult.getBlocks();
+
 			}
-			{
-				throw new RuntimeException(
-						"unable to parse the json file textDetectionResult:" + textDetectionResult.toString());
+
+			LOG.info("blocks size: " + blocks.size());
+
+			for (Block block : blocks) {
+				if (block.getBlockType().equals("PAGE")) {
+					page = new ArrayList<TextLine>();
+					pages.add(page);
+				} else if (block.getBlockType().equals("LINE")) {
+
+					boundingBox = block.getGeometry().getBoundingBox();
+					page.add(new TextLine(boundingBox.getLeft(), boundingBox.getTop(), boundingBox.getWidth(),
+							boundingBox.getHeight(), block.getText()));
+				}
 			}
 
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
 
-		LOG.info("pages size: ", pages.size());
+		LOG.info("pages size: {} ", pages.size());
 
 		return pages;
-
 	}
 
 	private InputStream getFileFromS3(String bucketName, String fileName) throws IOException {
 
-		AmazonS3 s3client = AmazonS3ClientBuilder.defaultClient();
-		com.amazonaws.services.s3.model.S3Object fullObject = s3client
+		com.amazonaws.services.s3.model.S3Object fullObject = this.s3client
 				.getObject(new GetObjectRequest(bucketName, fileName));
 		InputStream in = fullObject.getObjectContent();
 		LOG.info("getFileFromS3 bucketName: {},fileName: {} ", bucketName, fileName);
@@ -138,16 +146,19 @@ public class PdfFromS3 {
 
 	private void UploadSearchablePdfToS3(String keyName, String contentType, byte[] bytes) {
 
-		AmazonS3 s3client = AmazonS3ClientBuilder.defaultClient();
 		ByteArrayInputStream baInputStream = new ByteArrayInputStream(bytes);
 		ObjectMetadata metadata = new ObjectMetadata();
 		metadata.setContentLength(bytes.length);
 		metadata.setContentType(contentType);
-		PutObjectRequest putRequest = new PutObjectRequest(EnvironmentVariable.S3Path_SearchablePdfDestination, keyName,
-				baInputStream, metadata);
-		s3client.putObject(putRequest);
 
-		LOG.info("Generated searchable pdf: {}", EnvironmentVariable.S3Path_SearchablePdfDestination + "/" + keyName);
+		PutObjectRequest putRequest = new PutObjectRequest(EnvironmentVariable.S3BucketName_SearchablePdfDestination,
+				keyName, baInputStream, metadata);
+
+		this.s3client.putObject(putRequest);
+
+		LOG.info("Generated searchable pdf: {}, destination bucket:",
+				EnvironmentVariable.S3Path_SearchablePdfDestination + "/" + keyName,
+				EnvironmentVariable.S3BucketName_SearchablePdfDestination);
 	}
 
 	private String getSourcePdfKeyName(String jsonFileName) {
@@ -172,7 +183,7 @@ public class PdfFromS3 {
 		} else {
 			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + '/' + keyName;
 		}
-		LOG.debug("getSourcePdfKeyName: jsonFileName " + jsonFileName + ",keyName:" + keyName);
+		LOG.debug("getDestPdfKeyName: jsonFileName " + jsonFileName + ",keyName:" + keyName);
 		return keyName;
 	}
 
