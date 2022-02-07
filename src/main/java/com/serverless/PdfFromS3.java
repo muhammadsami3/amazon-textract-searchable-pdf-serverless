@@ -5,12 +5,12 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PushbackInputStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,6 +31,7 @@ import com.amazonaws.services.textract.model.GetDocumentTextDetectionResult;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 
 public class PdfFromS3 {
 
@@ -48,10 +49,16 @@ public class PdfFromS3 {
 		// Extract text using Amazon Textract
 		List<ArrayList<TextLine>> linesInPages = extractText(jsonBucketName, jsonFileName);
 
+		if (linesInPages.isEmpty()) {
+			throw new NoSuchElementException(
+					"can't get texttract detected text from the json file, linesInPages is empty!!");
+		}
+
 		String sourcePdfKeyName = getSourcePdfKeyName(jsonFileName);
 
 		// Get input pdf document from Amazon S3
 		InputStream inputPdf = getFileFromS3(EnvironmentVariable.S3BucketName_SourcePdf, sourcePdfKeyName);
+
 		// Create new PDF document
 		PDFDocument pdfDocument = new PDFDocument();
 
@@ -82,57 +89,49 @@ public class PdfFromS3 {
 
 	}
 
-//	private getPagesFromArray
+	// private getPagesFromArray
 
-	private List<ArrayList<TextLine>> extractText(String bucketName, String jsonFileName) throws InterruptedException {
+	private List<ArrayList<TextLine>> extractText(String bucketName, String jsonFileName)
+			throws InterruptedException, IOException {
 
 		List<ArrayList<TextLine>> pages = new ArrayList<ArrayList<TextLine>>();
 		ArrayList<TextLine> page = null;
 		BoundingBox boundingBox = null;
 		GetDocumentTextDetectionResult[] textDetectionResultArr = null;
 		GetDocumentTextDetectionResult textDetectionResult = null;
-		List<Block> blocks = null;
+		List<Block> blocks = new ArrayList<Block>();
 
-		try {
-			// create object mapper instance
-			ObjectMapper mapper = new ObjectMapper();
-			mapper.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
-			mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		// create object mapper instance
+		ObjectMapper mapper = new ObjectMapper();
+		mapper.configure(MapperFeature.ACCEPT_CASE_INSENSITIVE_PROPERTIES, true);
+		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-			InputStream inputJson = getFileFromS3(bucketName, jsonFileName);
-			if (inputJson.toString().startsWith("[")) {
+		InputStream inputJson = getFileFromS3(bucketName, jsonFileName);
 
-				textDetectionResultArr = mapper.readValue(inputJson, GetDocumentTextDetectionResult[].class);
-				if (textDetectionResultArr.length > 0) {
+		try {// inputJson is json array
+			textDetectionResultArr = mapper.readValue(inputJson, GetDocumentTextDetectionResult[].class);
+			blocks = textDetectionResultArr[0].getBlocks();
 
-					blocks = textDetectionResultArr[0].getBlocks();
-				}
-			} else {
+		} catch (MismatchedInputException e) {// inputJson is json object
+			inputJson = getFileFromS3(bucketName, jsonFileName);
+			textDetectionResult = mapper.readValue(inputJson, GetDocumentTextDetectionResult.class);
+			blocks = textDetectionResult.getBlocks();
 
-				textDetectionResult = mapper.readValue(inputJson, GetDocumentTextDetectionResult.class);
-				blocks = textDetectionResult.getBlocks();
-
-			}
-
-			LOG.info("blocks size: " + blocks.size());
-
-			for (Block block : blocks) {
-				if (block.getBlockType().equals("PAGE")) {
-					page = new ArrayList<TextLine>();
-					pages.add(page);
-				} else if (block.getBlockType().equals("LINE")) {
-
-					boundingBox = block.getGeometry().getBoundingBox();
-					page.add(new TextLine(boundingBox.getLeft(), boundingBox.getTop(), boundingBox.getWidth(),
-							boundingBox.getHeight(), block.getText()));
-				}
-			}
-
-		} catch (Exception ex) {
-			ex.printStackTrace();
 		}
 
-		LOG.info("pages size: {} ", pages.size());
+		for (Block block : blocks) {
+			if (block.getBlockType().equals("PAGE")) {
+				page = new ArrayList<TextLine>();
+				pages.add(page);
+			} else if (block.getBlockType().equals("LINE")) {
+
+				boundingBox = block.getGeometry().getBoundingBox();
+				page.add(new TextLine(boundingBox.getLeft(), boundingBox.getTop(), boundingBox.getWidth(),
+						boundingBox.getHeight(), block.getText()));
+			}
+		}
+
+		LOG.info("pages size: {},blocks size: {}", pages.size(), blocks.size());
 
 		return pages;
 	}
@@ -158,8 +157,7 @@ public class PdfFromS3 {
 
 		this.s3client.putObject(putRequest);
 
-		LOG.info("Generated searchable pdf: {}, destination bucket:",
-				EnvironmentVariable.S3Path_SearchablePdfDestination + "/" + keyName,
+		LOG.info("Generated searchable pdf: {}, destination bucket:{}", keyName,
 				EnvironmentVariable.S3BucketName_SearchablePdfDestination);
 	}
 
@@ -172,29 +170,26 @@ public class PdfFromS3 {
 			keyName = EnvironmentVariable.S3Path_SourcePdf + '/' + keyName;
 		}
 
-		LOG.debug("getSourcePdfKeyName: jsonFileName " + jsonFileName + ",keyName:" + keyName);
-
+		LOG.debug("getSourcePdfKeyName: jsonFileName {},keyName: {} ", jsonFileName, keyName);
 		return keyName;
 	}
 
 	private String getDestPdfKeyName(String jsonFileName) {
 		String keyName = getFileName(jsonFileName);
-		String date = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
 
 		if (EnvironmentVariable.S3Path_SourcePdf.endsWith("/") || EnvironmentVariable.S3Path_SourcePdf.isEmpty()) {
-			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + '/' + date + '/' + keyName;
+			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + keyName;
 		} else {
-			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + '/' + date + '/' + keyName;
+			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + '/' + keyName;
 		}
-
-		LOG.debug("getDestPdfKeyName: jsonFileName " + jsonFileName + ",keyName:" + keyName);
+		LOG.debug("getDestPdfKeyName: jsonFileName {} keyName: {}", jsonFileName, keyName);
 		return keyName;
 	}
 
 	private String getFileName(String jsonFileName) {
 		Path path = Paths.get(jsonFileName);
 		String fileName = path.getFileName().toString().replaceAll(".json", ".pdf");
-		LOG.debug("getFileName: jsonFileName " + jsonFileName + ",fileName:" + fileName);
+		LOG.debug("getFileName: jsonFileName {}, fileName:{} ", jsonFileName, fileName);
 		return fileName;
 	}
 }

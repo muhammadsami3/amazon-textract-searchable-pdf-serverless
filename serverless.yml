@@ -26,6 +26,7 @@ provider:
             - "s3:*"
           Resource:
             - "arn:aws:s3:::*/*"
+            - "arn:aws:s3:::*"
 
 # you can add packaging information here
 package:

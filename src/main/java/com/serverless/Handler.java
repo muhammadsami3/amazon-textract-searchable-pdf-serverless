@@ -14,7 +14,7 @@ public class Handler implements RequestHandler<S3Event, String> {
 
 	@Override
 	public String handleRequest(S3Event event, Context ctx) {
-		LOG.info("1 --- received: {}", event.toString());
+		LOG.info("received: {}", event.toString());
 
 		S3EventNotification.S3EventNotificationRecord record = event.getRecords().get(0);
 
