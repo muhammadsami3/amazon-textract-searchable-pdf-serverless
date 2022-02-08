@@ -163,11 +163,13 @@ public class PdfFromS3 {
 
 	private String getSourcePdfKeyName(String jsonFileName) {
 		String keyName = getFileName(jsonFileName);
-
-		if (EnvironmentVariable.S3Path_SourcePdf.endsWith("/") || EnvironmentVariable.S3Path_SourcePdf.isEmpty()) {
-			keyName = EnvironmentVariable.S3Path_SourcePdf + keyName;
-		} else {
-			keyName = EnvironmentVariable.S3Path_SourcePdf + '/' + keyName;
+		
+		if (EnvironmentVariable.S3Path_SourcePdf != null) {
+			if (EnvironmentVariable.S3Path_SourcePdf.endsWith("/") || EnvironmentVariable.S3Path_SourcePdf.isEmpty()) {
+				keyName = EnvironmentVariable.S3Path_SourcePdf + keyName;
+			} else {
+				keyName = EnvironmentVariable.S3Path_SourcePdf + '/' + keyName;
+			}
 		}
 
 		LOG.debug("getSourcePdfKeyName: jsonFileName {},keyName: {} ", jsonFileName, keyName);
@@ -176,11 +178,12 @@ public class PdfFromS3 {
 
 	private String getDestPdfKeyName(String jsonFileName) {
 		String keyName = getFileName(jsonFileName);
-
-		if (EnvironmentVariable.S3Path_SourcePdf.endsWith("/") || EnvironmentVariable.S3Path_SourcePdf.isEmpty()) {
+		if (EnvironmentVariable.S3Path_SearchablePdfDestination != null) {
+		if (EnvironmentVariable.S3Path_SearchablePdfDestination.endsWith("/") || EnvironmentVariable.S3Path_SearchablePdfDestination.isEmpty()) {
 			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + keyName;
 		} else {
 			keyName = EnvironmentVariable.S3Path_SearchablePdfDestination + '/' + keyName;
+		}
 		}
 		LOG.debug("getDestPdfKeyName: jsonFileName {} keyName: {}", jsonFileName, keyName);
 		return keyName;
